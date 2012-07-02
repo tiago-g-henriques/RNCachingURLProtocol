@@ -59,6 +59,46 @@ static NSString *RNCachingURLHeader = @"X-RNCache";
 @synthesize data = data_;
 @synthesize response = response_;
 
+BOOL internetActive;
+Reachability *internetReachable;
+
++ (void)initialize
+{
+    // check for internet connection
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(checkNetworkStatus:)
+                                                 name:kReachabilityChangedNotification 
+                                               object:nil];
+    internetReachable = [Reachability reachabilityForInternetConnection];
+    [internetReachable startNotifier];
+}
+
++ (void)checkNetworkStatus:(NSNotification *)notice
+{
+    // called after network status changes
+    NetworkStatus internetStatus = [internetReachable currentReachabilityStatus];
+    switch (internetStatus)
+    {
+        case NotReachable:
+        {
+            DLog(@"The internet is down.");
+            internetActive = NO;
+            break;
+        }
+        case ReachableViaWiFi:
+        {
+            DLog(@"The internet is working via WIFI.");
+            internetActive = YES;
+            break;
+        }
+        case ReachableViaWWAN:
+        {
+            DLog(@"The internet is working via WWAN.");
+            internetActive = YES;
+            break;
+        }
+    }
+}
 
 + (BOOL)canInitWithRequest:(NSURLRequest *)request
 {
@@ -85,37 +125,36 @@ static NSString *RNCachingURLHeader = @"X-RNCache";
 
 - (void)startLoading
 {
-  if ([[Reachability reachabilityWithHostname:[[[self request] URL] host]] currentReachabilityStatus] != NotReachable) {
-    NSMutableURLRequest *connectionRequest = 
+    if (internetActive) {
+        NSMutableURLRequest *connectionRequest = 
 #if WORKAROUND_MUTABLE_COPY_LEAK
-      [[self request] mutableCopyWorkaround];
+        [[self request] mutableCopyWorkaround];
 #else
-      [[self request] mutableCopy];
+        [[self request] mutableCopy];
 #endif
-    // we need to mark this request with our header so we know not to handle it in +[NSURLProtocol canInitWithRequest:].
-    [connectionRequest setValue:@"" forHTTPHeaderField:RNCachingURLHeader];
-    NSURLConnection *connection = [NSURLConnection connectionWithRequest:connectionRequest
-                                                                delegate:self];
-    [self setConnection:connection];
-  }
-  else {
-    RNCachedData *cache = [NSKeyedUnarchiver unarchiveObjectWithFile:[self cachePathForRequest:[self request]]];
-    if (cache) {
-      NSData *data = [cache data];
-      NSURLResponse *response = [cache response];
-      NSURLRequest *redirectRequest = [cache redirectRequest];
-      if (redirectRequest) {
-        [[self client] URLProtocol:self wasRedirectedToRequest:[cache redirectRequest] redirectResponse:[cache response]];
-      } else {
-        [[self client] URLProtocol:self didReceiveResponse:response cacheStoragePolicy:NSURLCacheStorageAllowed];
-        [[self client] URLProtocol:self didLoadData:data];
-        [[self client] URLProtocolDidFinishLoading:self];
-      }
+        // we need to mark this request with our header so we know not to handle it in +[NSURLProtocol canInitWithRequest:].
+        [connectionRequest setValue:@"" forHTTPHeaderField:RNCachingURLHeader];
+        NSURLConnection *connection = [NSURLConnection connectionWithRequest:connectionRequest
+                                                                    delegate:self];
+        [self setConnection:connection];
+    } else {
+        RNCachedData *cache = [NSKeyedUnarchiver unarchiveObjectWithFile:[self cachePathForRequest:[self request]]];
+        if (cache) {
+            NSData *data = [cache data];
+            NSURLResponse *response = [cache response];
+            NSURLRequest *redirectRequest = [cache redirectRequest];
+            if (redirectRequest) {
+                [[self client] URLProtocol:self wasRedirectedToRequest:[cache redirectRequest] redirectResponse:[cache response]];
+            } else {
+                [[self client] URLProtocol:self didReceiveResponse:response cacheStoragePolicy:NSURLCacheStorageAllowed];
+                [[self client] URLProtocol:self didLoadData:data];
+                [[self client] URLProtocolDidFinishLoading:self];
+            }
+        }
+        else {
+            [[self client] URLProtocol:self didFailWithError:[NSError errorWithDomain:NSURLErrorDomain code:NSURLErrorCannotConnectToHost userInfo:nil]];
+        }
     }
-    else {
-      [[self client] URLProtocol:self didFailWithError:[NSError errorWithDomain:NSURLErrorDomain code:NSURLErrorCannotConnectToHost userInfo:nil]];
-    }
-  }
 }
 
 - (void)stopLoading
