@@ -70,6 +70,7 @@ Reachability *internetReachable;
                                                  name:kReachabilityChangedNotification 
                                                object:nil];
     internetReachable = [Reachability reachabilityForInternetConnection];
+    internetActive = [internetReachable isReachable];
     [internetReachable startNotifier];
 }
 

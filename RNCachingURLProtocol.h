@@ -62,7 +62,6 @@
 
 @interface RNCachingURLProtocol : NSURLProtocol
 
-+ (void)configureReachability;
 + (void)checkNetworkStatus:(NSNotification *)notice;
 
 @end
