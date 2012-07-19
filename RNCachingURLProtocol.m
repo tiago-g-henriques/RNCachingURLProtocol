@@ -106,7 +106,14 @@ Reachability *internetReachable;
   // only handle http requests we haven't marked with our header.
   if ([[[request URL] scheme] isEqualToString:@"http"] &&
       ([request valueForHTTPHeaderField:RNCachingURLHeader] == nil)) {
-    return YES;
+      if ([[[request URL] host] isEqualToString:@"services.sapo.pt"]) {
+          return YES;
+      } else if ([[[request URL] host] isEqualToString:@"thumbs.sapo.pt"]) {
+          return YES;
+      } else {
+          DLog(@"%@", [[request URL] host]);
+          return NO;
+      }
   }
   return NO;
 }
