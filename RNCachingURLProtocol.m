@@ -27,6 +27,7 @@
 
 #import "RNCachingURLProtocol.h"
 #import "Reachability.h"
+#import "NSString+SKAdditions.h"
 
 #define WORKAROUND_MUTABLE_COPY_LEAK 1
 
@@ -126,17 +127,7 @@ Reachability *internetReachable;
 {
     // This stores in the Caches directory, which can be deleted when space is low, but we only use it for offline access
     NSString *cachesPath = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) lastObject];
-    NSString *urlHash = [NSString stringWithFormat:@"%x", [[[aRequest URL] absoluteString] hash]];
-    NSString *queryHash = [NSString stringWithFormat:@"%@", [[[aRequest URL] query] stringByAddingPercentEscapesUsingEncoding:NSUTF8StringEncoding]];
-    NSString *fileName = [urlHash stringByAppendingFormat:@"-%@", queryHash];
-    NSString *cachePath = [cachesPath stringByAppendingPathComponent:fileName];
-    if ([cachePath length] > 251) {
-        cachePath = [cachePath substringToIndex:250];
-    }
-    if ([[NSFileManager defaultManager] fileExistsAtPath:cachePath]) {
-        DLog(@"Hash %@ collision for request %@", fileName, [[aRequest URL] absoluteString]);
-    }
-    return cachePath;
+    return [cachesPath stringByAppendingPathComponent:[[[aRequest URL] absoluteString] md5Hash]];
 }
 
 - (void)startLoading
